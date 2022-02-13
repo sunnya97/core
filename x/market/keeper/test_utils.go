@@ -21,6 +21,7 @@ import (
 	oracletypes "github.com/terra-money/core/x/oracle/types"
 
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/crypto/ed25519"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	"github.com/tendermint/tendermint/libs/log"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
@@ -265,4 +266,25 @@ func FundAccount(input TestInput, addr sdk.AccAddress, amounts sdk.Coins) error 
 	}
 
 	return input.BankKeeper.SendCoinsFromModuleToAccount(input.Ctx, faucetAccountName, addr, amounts)
+}
+
+func createFakeFundedAccount(ctx sdk.Context, ak authkeeper.AccountKeeper, bk bankkeeper.Keeper, coins sdk.Coins) sdk.AccAddress {
+	_, _, addr := keyPubAddr()
+	ak.SetAccount(ctx, authtypes.NewBaseAccountWithAddress(addr))
+
+	if err := bk.MintCoins(ctx, faucetAccountName, coins); err != nil {
+		panic(err)
+	}
+
+	if err := bk.SendCoinsFromModuleToAccount(ctx, faucetAccountName, addr, coins); err != nil {
+		panic(err)
+	}
+	return addr
+}
+
+func keyPubAddr() (crypto.PrivKey, crypto.PubKey, sdk.AccAddress) {
+	key := ed25519.GenPrivKey()
+	pub := key.PubKey()
+	addr := sdk.AccAddress(pub.Address())
+	return key, pub, addr
 }
