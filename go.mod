@@ -3,11 +3,12 @@ go 1.17
 module github.com/terra-money/core
 
 require (
-	github.com/CosmWasm/wasmvm v0.16.3
+	github.com/CosmWasm/wasmvm v0.16.6
 	github.com/cosmos/cosmos-sdk v0.44.5
 	github.com/cosmos/ibc-go v1.1.5
 	github.com/gogo/protobuf v1.3.3
 	github.com/golang/protobuf v1.5.2
+	github.com/google/gofuzz v1.2.0
 	github.com/gorilla/mux v1.8.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/pkg/errors v0.9.1
