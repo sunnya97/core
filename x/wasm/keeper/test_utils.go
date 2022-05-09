@@ -4,6 +4,7 @@ package keeper
 //DONTCOVER
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -65,9 +66,11 @@ import (
 	oracletypes "github.com/terra-money/core/x/oracle/types"
 	oraclewasm "github.com/terra-money/core/x/oracle/wasm"
 	"github.com/terra-money/core/x/wasm/config"
-	"github.com/terra-money/core/x/wasm/keeper/wasmtesting"
 	treasurylegacy "github.com/terra-money/core/x/wasm/legacyqueriers/treasury"
 	"github.com/terra-money/core/x/wasm/types"
+
+	ibctransferkeeper "github.com/cosmos/ibc-go/v3/modules/apps/transfer/keeper"
+	ibctransfertypes "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
 )
 
 const faucetAccountName = "faucet"
@@ -150,6 +153,7 @@ type TestInput struct {
 	OracleKeeper       oraclekeeper.Keeper
 	MarketKeeper       marketkeeper.Keeper
 	IBCKeeper          ibckeeper.Keeper
+	IBCTransferKeeper  ibctransferkeeper.Keeper
 	WasmKeeper         Keeper
 }
 
@@ -168,6 +172,7 @@ func CreateTestInput(t *testing.T) TestInput {
 	keyMarket := sdk.NewKVStoreKey(markettypes.StoreKey)
 	keyUpgrade := sdk.NewKVStoreKey(upgradetypes.StoreKey)
 	keyIBC := sdk.NewKVStoreKey(ibchost.StoreKey)
+	keyIBCTransfer := sdk.NewKVStoreKey(ibctransfertypes.StoreKey)
 	keyCapability := sdk.NewKVStoreKey(capabilitytypes.StoreKey)
 	keyCapabilityTransient := storetypes.NewMemoryStoreKey(capabilitytypes.MemStoreKey)
 
@@ -188,6 +193,7 @@ func CreateTestInput(t *testing.T) TestInput {
 	ms.MountStoreWithDB(keyMarket, sdk.StoreTypeIAVL, db)
 	ms.MountStoreWithDB(keyUpgrade, sdk.StoreTypeIAVL, db)
 	ms.MountStoreWithDB(keyIBC, sdk.StoreTypeIAVL, db)
+	ms.MountStoreWithDB(keyIBCTransfer, sdk.StoreTypeIAVL, db)
 	ms.MountStoreWithDB(keyCapability, sdk.StoreTypeIAVL, db)
 	ms.MountStoreWithDB(keyCapabilityTransient, sdk.StoreTypeMemory, db)
 
@@ -210,6 +216,7 @@ func CreateTestInput(t *testing.T) TestInput {
 		distrtypes.ModuleName:          nil,
 		oracletypes.ModuleName:         nil,
 		markettypes.ModuleName:         {authtypes.Burner, authtypes.Minter},
+		ibctransfertypes.ModuleName:    {authtypes.Minter, authtypes.Burner},
 	}
 
 	paramsKeeper := paramskeeper.NewKeeper(appCodec, legacyAmino, keyParams, tkeyParams)
@@ -254,6 +261,7 @@ func CreateTestInput(t *testing.T) TestInput {
 	distrAcc := authtypes.NewEmptyModuleAccount(distrtypes.ModuleName)
 	oracleAcc := authtypes.NewEmptyModuleAccount(oracletypes.ModuleName)
 	marketAcc := authtypes.NewEmptyModuleAccount(types.ModuleName, authtypes.Burner, authtypes.Minter)
+	ibcTransferAcc := authtypes.NewEmptyModuleAccount(ibctransfertypes.ModuleName)
 
 	err = bankKeeper.SendCoinsFromModuleToModule(ctx, faucetAccountName, stakingtypes.NotBondedPoolName, sdk.NewCoins(sdk.NewCoin(core.MicroLunaDenom, InitTokens.MulRaw(int64(len(Addrs))))))
 	require.NoError(t, err)
@@ -264,6 +272,7 @@ func CreateTestInput(t *testing.T) TestInput {
 	accountKeeper.SetModuleAccount(ctx, distrAcc)
 	accountKeeper.SetModuleAccount(ctx, oracleAcc)
 	accountKeeper.SetModuleAccount(ctx, marketAcc)
+	accountKeeper.SetModuleAccount(ctx, ibcTransferAcc)
 
 	for _, addr := range Addrs {
 		accountKeeper.SetAccount(ctx, authtypes.NewBaseAccountWithAddress(addr))
@@ -301,6 +310,7 @@ func CreateTestInput(t *testing.T) TestInput {
 	capabilityKeeper := capabilitykeeper.NewKeeper(appCodec, keyCapability, keyCapabilityTransient)
 	scopedIBCKeeper := capabilityKeeper.ScopeToModule(ibchost.ModuleName)
 	scopedWasmKeeper := capabilityKeeper.ScopeToModule(types.ModuleName)
+	scopedTransferKeeper := capabilityKeeper.ScopeToModule(ibctransfertypes.ModuleName)
 
 	ibcKeeper := ibckeeper.NewKeeper(
 		appCodec,
@@ -308,6 +318,17 @@ func CreateTestInput(t *testing.T) TestInput {
 		stakingKeeper,
 		upgradeKeeper,
 		scopedIBCKeeper,
+	)
+	ibcTransferKeeper := ibctransferkeeper.NewKeeper(
+		appCodec,
+		keyIBCTransfer,
+		paramsKeeper.Subspace(ibctransfertypes.ModuleName),
+		ibcKeeper.ChannelKeeper,
+		ibcKeeper.ChannelKeeper,
+		&ibcKeeper.PortKeeper,
+		accountKeeper,
+		bankKeeper,
+		scopedTransferKeeper,
 	)
 
 	router := baseapp.NewMsgServiceRouter()
@@ -360,7 +381,7 @@ func CreateTestInput(t *testing.T) TestInput {
 		types.WasmMsgParserRouteDistribution: distrwasm.NewWasmMsgParser(),
 		types.WasmMsgParserRouteGov:          govwasm.NewWasmMsgParser(),
 		types.WasmMsgParserRouteWasm:         NewWasmMsgParser(),
-	}, NewStargateWasmMsgParser(legacyAmino), NewIBCMsgParser(wasmtesting.MockIBCTransferKeeper{}))
+	}, NewStargateWasmMsgParser(legacyAmino), NewIBCMsgParser(ibcTransferKeeper))
 
 	keeper.SetLastCodeID(ctx, 0)
 	keeper.SetLastInstanceID(ctx, 0)
@@ -375,6 +396,7 @@ func CreateTestInput(t *testing.T) TestInput {
 		oracleKeeper,
 		marketKeeper,
 		*ibcKeeper,
+		ibcTransferKeeper,
 		keeper}
 }
 
@@ -421,4 +443,10 @@ type HackatomExampleInitMsg struct {
 // IBCReflectInitMsg nolint
 type IBCReflectInitMsg struct {
 	ReflectCodeID uint64 `json:"reflect_code_id"`
+}
+
+func (m IBCReflectInitMsg) GetBytes(t *testing.T) []byte {
+	initMsgBz, err := json.Marshal(m)
+	require.NoError(t, err)
+	return initMsgBz
 }

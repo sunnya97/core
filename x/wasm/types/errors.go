@@ -27,4 +27,5 @@ var (
 	ErrEmpty                     = sdkerrors.Register(ModuleName, 20, "empty")
 	ErrUnsupportedForContract    = sdkerrors.Register(ModuleName, 21, "unsupported for this contract")
 	ErrInvalid                   = sdkerrors.Register(ModuleName, 22, "invalid")
+	ErrMaxIBCChannels            = sdkerrors.Register(ModuleName, 23, "max transfer channels")
 )

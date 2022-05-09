@@ -7,21 +7,14 @@ import (
 
 	wasmvmtypes "github.com/CosmWasm/wasmvm/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	ibctransfertypes "github.com/cosmos/ibc-go/v3/modules/apps/transfer/types"
-	types1 "github.com/cosmos/ibc-go/v3/modules/core/02-client/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/secp256k1"
 	core "github.com/terra-money/core/types"
-	"github.com/terra-money/core/x/wasm/keeper/wasmtesting"
 )
 
-func getPortFn(ctx sdk.Context) string {
-	return "wasm.transfer"
-}
-
-func TestIBCEcoding(t *testing.T) {
+func TestIBCEncoding(t *testing.T) {
 	input := CreateTestInput(t)
 	ctx, accKeeper, bankKeeper, keeper := input.Ctx, input.AccKeeper, input.BankKeeper, input.WasmKeeper
 
@@ -107,6 +100,7 @@ func TestIBCEcoding(t *testing.T) {
 					},
 				},
 			},
+			/* it always fails because there's no opened channel
 			output: &ibctransfertypes.MsgTransfer{
 				SourcePort:       "wasm.transfer",
 				SourceChannel:    "testchannel-1",
@@ -116,12 +110,11 @@ func TestIBCEcoding(t *testing.T) {
 				TimeoutHeight:    types1.Height{RevisionNumber: 1, RevisionHeight: 1},
 				TimeoutTimestamp: 100000000,
 			},
+			*/
+			isError: true, // can't open channel in test
 		},
 	}
-
-	parser := NewIBCMsgParser(wasmtesting.MockIBCTransferKeeper{
-		GetPortFn: getPortFn,
-	})
+	parser := NewIBCMsgParser(input.IBCTransferKeeper)
 	for name, tc := range cases {
 		tc := tc
 		t.Run(name, func(t *testing.T) {

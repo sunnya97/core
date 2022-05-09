@@ -17,7 +17,7 @@ import (
 	"github.com/terra-money/core/x/wasm/types"
 )
 
-func TestEcoding(t *testing.T) {
+func TestEncoding(t *testing.T) {
 	pubKeys := []crypto.PubKey{
 		secp256k1.GenPrivKey().PubKey(),
 		secp256k1.GenPrivKey().PubKey(),
